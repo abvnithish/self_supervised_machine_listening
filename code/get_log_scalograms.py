@@ -1,4 +1,3 @@
-
 ### Importing Libraries
 import os
 import time
@@ -29,24 +28,28 @@ print(f'There are a total of {len(filenames)} music files in the root directory'
 def save_waveforms(file):
 
     ROOT_DIR = '/beegfs/bva212/fma_small/'
+    SAVE_DIR = '/beegfs/bva212/fma_small_cqt/'
     waveform, fs_ = librosa.load((ROOT_DIR + file), sr = SR)
-    waveform_flipped = np.ascontiguousarray(np.flip(waveform), dtype=np.float32)
+    #waveform_flipped = np.ascontiguousarray(np.flip(waveform), dtype=np.float32)
 
     cqt = librosa.cqt(waveform)
-    cqt_flipped = librosa.cqt(waveform_flipped)
+    #cqt_flipped = librosa.cqt(waveform_flipped)
 
     logscalogram = librosa.amplitude_to_db(np.abs(cqt))
-    logscalogram_flipped = librosa.amplitude_to_db(np.abs(cqt_flipped))
+    #logscalogram_flipped = librosa.amplitude_to_db(np.abs(cqt_flipped))
 
-    np.save((ROOT_DIR + file + '_cqt.npy'), logscalogram)
-    np.save((ROOT_DIR + file + '_cqt_flipped.npy'), logscalogram_flipped)
+    os.makedirs(os.path.dirname(SAVE_DIR + file[:4]), exist_ok=True)
+
+    np.save((SAVE_DIR + file + '_cqt.npy'), logscalogram)
+    #np.save((SAVE_DIR + file + '_cqt_flipped.npy'), logscalogram_flipped)
 
     return True
 
 
+print(f'Number of workers available are {os.cpu_count()}')
 start = time.time()
 with mp.Pool(os.cpu_count()) as p:
-    results = p.map_async(save_waveforms, filenames[100:200])
+    results = p.map_async(save_waveforms, filenames)
     output = results.get()
 print(f'\nTime for loading files is {time.time() - start}')
 
