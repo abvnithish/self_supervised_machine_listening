@@ -37,7 +37,7 @@ class AudioNet():
     '''
     Base class for implementation of Audio Net network
     '''
-    def __init__(self, device, root_dir, path_file = '/checksums', sr = 22050, batch_size = 64, val_split = 0.2, transform_prob = 0.5):
+    def __init__(self, device, root_dir, path_file = '/checksums', sr = 22050, batch_size = 64, val_split = 0.2, transform_prob = 0.5, reduce_two_class=False):
           
         self.device = device
         self.root_dir = root_dir
@@ -46,6 +46,7 @@ class AudioNet():
         self.val_split = val_split
         self.transform_prob = transform_prob
         self.sr = sr
+        self.reduce_two_class = reduce_two_class
         print('Getting Train & Validation Datasets')
         self.get_datasets()
         print('\t --Done')
@@ -54,7 +55,7 @@ class AudioNet():
         print(f'Length of Train dataloader: {len(self.dataloaders["train"])} \t Validation dataloader: {len(self.dataloaders["valid"])}')
         print('\t --Done')
         print('Instantiating Audio Net Model')
-        self.model = snet().to(self.device)
+        self.model = l3net_separable().to(self.device)
         self.model = torch.nn.DataParallel(self.model)
         print('\t --Done')
         print('Init actions done')
@@ -92,8 +93,8 @@ class AudioNet():
         self.train_files = np.array(self.filenames)[indices[:train_index]]
         self.val_files = np.array(self.filenames)[indices[train_index:]]
 
-        train_dataset = fmaDataset(self.device, self.root_dir, self.train_files, sr = self.sr, transform_prob = self.transform_prob)
-        val_dataset = fmaDataset(self.device, self.root_dir, self.val_files, sr = self.sr, transform_prob = self.transform_prob)
+        train_dataset = fmaDataset(self.device, self.root_dir, self.train_files, sr = self.sr, transform_prob = self.transform_prob, reduce_two_class= self.reduce_two_class)
+        val_dataset = fmaDataset(self.device, self.root_dir, self.val_files, sr = self.sr, transform_prob = self.transform_prob, reduce_two_class= self.reduce_two_class)
 
         self.datasets = {'train': train_dataset, 'valid': val_dataset}
         self.dataset_sizes = {x: len(self.datasets[x]) for x in ['train', 'valid']}
@@ -121,7 +122,7 @@ class AudioNet():
         print(f'Instantiating Optimzer, Loss Criterion, Scheduler')
         optimizer = torch.optim.Adam(self.model.parameters(), lr = learning_rate)
         criterion = nn.CrossEntropyLoss()
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=2)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=2, verbose=True)
         print('\t --Done')
 
         print('Training started')
@@ -248,13 +249,14 @@ class AudioNet():
 class fmaDataset(Dataset):
 
 # def __init__(self, device, cqt_waveforms, transform_type, transform_prob):
-    def __init__(self, device, root_dir, files, sr, transform_prob):
+    def __init__(self, device, root_dir, files, sr, transform_prob, reduce_two_class):
 
         self.device = device
         self.root_dir = root_dir
         self.files = files
         self.sr = sr
         self.transform_prob = transform_prob
+        self.reduce_two_class = reduce_two_class
         self.permutation_mappings = [
             ([0,1,2],[1,0,0,0,0,0],0),
             ([0,2,1],[0,1,0,0,0,0],1),
@@ -279,8 +281,17 @@ class fmaDataset(Dataset):
         logscalograms = [logscalogram[:, :420], logscalogram[:, 430: 850], logscalogram[:, 860:1280]]
         chosen_split = logscalograms[np.random.randint(0, 3)]
         jigsaw_splits = [np.split(chosen_split, 3, axis=1)][0] ## [0] is to flatten the array. [1] does not have any element
-        chosen_perm = self.permutation_mappings[np.random.randint(0, 6)]
-        label = torch.tensor(chosen_perm[2])
+        if self.reduce_two_class:
+            flip = np.random.rand()
+            if flip < 0.5:
+                chosen_perm = self.permutation_mappings[0]
+                label = torch.tensor(0)
+            else:
+                chosen_perm = self.permutation_mappings[np.random.randint(1, 6)]
+                label = torch.tensor(1)
+        else:
+            chosen_perm = self.permutation_mappings[np.random.randint(0, 6)]
+            label = torch.tensor(chosen_perm[2])
         data = torch.FloatTensor(np.array([jigsaw_splits[x][:,:-5] for x in chosen_perm[0]])) ## Trimming last 5 pixels to avoid common borders
         #yield data.to(self.device), label.to(self.device)
         debug(data.shape)
@@ -388,8 +399,132 @@ class snet(nn.Module):
 #                     nn.ReLU(inplace = True)
                 )
         self.concat_mlp_layer = nn.Linear(2304, 256)
-        self.mlp_layer = nn.Linear(256, 6)
+        #self.mlp_layer = nn.Linear(256, 6)
+        self.mlp_layer = nn.Linear(256, 2)
+              
+    def forward(self, input):
+        debug('Starting')
+        debug(input.shape)
+        conv_strips = []
+        n_strips = input.shape[1]
+        for strip in range(n_strips):
+            conv_strip = input[:,strip]
+            conv_strip = conv_strip.unsqueeze(1)
+            debug('Strip shape')
+            debug(conv_strip.shape)
+            conv_strips.append(self.conv_layers(conv_strip))
+        #conv_strips=torch.from_numpy(np.array(conv_strips))
+        debug('CONV strips shape')
+        debug(conv_strips[0].shape)
+        concat_out=torch.cat(conv_strips,1)
+        out = self.concat_mlp_layer(concat_out.view(concat_out.shape[0], -1))
+        #out =  self.conv_layers(input)
+        output = self.mlp_layer(out.view(out.shape[0], -1))
+        return output
 
+              
+class snet_separable(nn.Module):
+
+    def __init__(self):
+        '''
+        Create the 5 Conv Layer Sound Net network architecture as per the paper - https://arxiv.org/pdf/1610.09001.pdf
+        '''
+        super(snet_separable, self).__init__()
+
+        self.conv_layers = nn.Sequential(nn.Conv2d(in_channels = 3, out_channels= 3, kernel_size = 5, stride = 2, padding = 2, groups=3),
+                nn.Conv2d(in_channels = 3, out_channels= 16, kernel_size = 1, stride = 2, padding = 2),
+                nn.BatchNorm2d(num_features = 16), 
+                nn.ReLU(inplace = True),
+                nn.MaxPool2d(kernel_size = 4, stride = (1,2)),
+
+                nn.Conv2d(in_channels = 16, out_channels = 32, kernel_size = 5, stride = 2, padding = 2),
+                nn.BatchNorm2d(32),
+                nn.ReLU(inplace = True),
+                nn.MaxPool2d(kernel_size = 3, stride = (1,2)),
+
+                nn.Conv2d(in_channels = 32, out_channels = 64, kernel_size = 4, stride = 2, padding = 2),
+                nn.BatchNorm2d(64),
+                nn.ReLU(inplace = True),
+
+                nn.Conv2d(in_channels = 64, out_channels = 128, kernel_size = 4, stride = 2, padding = 2),
+                nn.BatchNorm2d(128),
+                nn.ReLU(inplace = True),
+
+                nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = 4, stride = 2, padding = 2),
+                nn.BatchNorm2d(256),
+                nn.ReLU(inplace = True),
+                nn.MaxPool2d(kernel_size = 2, stride = 1),
+
+#                     nn.Conv2d(in_channels = 256, out_channels = 512, kernel_size = 3, stride = 2, padding = 2),
+#                     nn.BatchNorm2d(512),
+#                     nn.ReLU(inplace = True),
+
+#                     nn.Conv2d(in_channels = 512, out_channels = 1024, kernel_size = 3, stride = 2, padding = 2),
+#                     nn.BatchNorm2d(1024),
+#                     nn.ReLU(inplace = True)
+                )
+        self.concat_mlp_layer = nn.Linear(768, 256)
+        #self.mlp_layer = nn.Linear(256, 6)
+        self.mlp_layer = nn.Linear(256, 2)
+              
+    def forward(self, input):
+        debug('Starting')
+        debug(input.shape)
+        out = self.conv_layers(input)
+        out = self.concat_mlp_layer(out.view(out.shape[0], -1))
+        #out =  self.conv_layers(input)
+        output = self.mlp_layer(out.view(out.shape[0], -1))
+        return output
+
+
+class l3net(nn.Module):
+
+    def __init__(self):
+        '''
+        Create the L3 Net network architecture
+        '''
+        super(l3net, self).__init__()
+
+        self.conv_layers = nn.Sequential(nn.Conv2d(in_channels = 1, out_channels= 64, kernel_size = 3, padding = 0), 
+                nn.BatchNorm2d(64), 
+                nn.ReLU(inplace = True),
+
+                nn.Conv2d(in_channels = 64, out_channels= 64, kernel_size = 3, padding = 0), 
+                nn.BatchNorm2d(64), 
+                nn.ReLU(inplace = True),
+                nn.MaxPool2d(kernel_size = 2, stride = 2),
+
+                nn.Conv2d(in_channels = 64, out_channels= 128, kernel_size = 3, padding = 0), 
+                nn.BatchNorm2d(128), 
+                nn.ReLU(inplace = True),
+
+                nn.Conv2d(in_channels = 128, out_channels= 128, kernel_size = 3, padding = 0), 
+                nn.BatchNorm2d(128), 
+                nn.ReLU(inplace = True),
+                nn.MaxPool2d(kernel_size = 2, stride = 2),
+
+                nn.Conv2d(in_channels = 128, out_channels= 256, kernel_size = 3, padding = 0), 
+                nn.BatchNorm2d(256), 
+                nn.ReLU(inplace = True),
+
+                nn.Conv2d(in_channels = 256, out_channels= 256, kernel_size = 3, padding = 0), 
+                nn.BatchNorm2d(256), 
+                nn.ReLU(inplace = True),
+                nn.MaxPool2d(kernel_size = 2, stride = 2),
+                                         
+                nn.Conv2d(in_channels = 256, out_channels= 512, kernel_size = 3, padding = 0), 
+                nn.BatchNorm2d(512), 
+                nn.ReLU(inplace = True),
+
+                nn.Conv2d(in_channels = 512, out_channels= 512, kernel_size = 3, padding = 0), 
+                nn.BatchNorm2d(512), 
+                nn.ReLU(inplace = True),
+                nn.MaxPool2d(kernel_size = (3,9), stride = 0)
+                )
+        self.concat_mlp_layer = nn.Linear(1536, 128)
+        #self.mlp_layer = nn.Linear(128, 6)
+        self.mlp_layer = nn.Linear(128, 2)
+              
     def forward(self, input):
         debug('Starting')
         debug(input.shape)
@@ -411,9 +546,63 @@ class snet(nn.Module):
         return output
 
 
+class l3net_separable(nn.Module):
 
+    def __init__(self):
+        '''
+        Create the L3 Net network architecture
+        '''
+        super(l3net_separable, self).__init__()
 
+        self.conv_layers = nn.Sequential(nn.Conv2d(in_channels = 3, out_channels= 3, kernel_size = 3, padding = 0,groups=3),#depthwise
+                nn.Conv2d(in_channels = 3, out_channels= 64, kernel_size = 1, padding = 0),#pointwise
+                nn.BatchNorm2d(64), 
+                nn.ReLU(inplace = True),
 
+                nn.Conv2d(in_channels = 64, out_channels= 64, kernel_size = 3, padding = 0), 
+                nn.BatchNorm2d(64), 
+                nn.ReLU(inplace = True),
+                nn.MaxPool2d(kernel_size = 2, stride = 2),
+
+                nn.Conv2d(in_channels = 64, out_channels= 128, kernel_size = 3, padding = 0), 
+                nn.BatchNorm2d(128), 
+                nn.ReLU(inplace = True),
+
+                nn.Conv2d(in_channels = 128, out_channels= 128, kernel_size = 3, padding = 0), 
+                nn.BatchNorm2d(128), 
+                nn.ReLU(inplace = True),
+                nn.MaxPool2d(kernel_size = 2, stride = 2),
+
+                nn.Conv2d(in_channels = 128, out_channels= 256, kernel_size = 3, padding = 0), 
+                nn.BatchNorm2d(256), 
+                nn.ReLU(inplace = True),
+
+                nn.Conv2d(in_channels = 256, out_channels= 256, kernel_size = 3, padding = 0), 
+                nn.BatchNorm2d(256), 
+                nn.ReLU(inplace = True),
+                nn.MaxPool2d(kernel_size = 2, stride = 2),
+                                         
+                nn.Conv2d(in_channels = 256, out_channels= 512, kernel_size = 3, padding = 0), 
+                nn.BatchNorm2d(512), 
+                nn.ReLU(inplace = True),
+
+                nn.Conv2d(in_channels = 512, out_channels= 512, kernel_size = 3, padding = 0), 
+                nn.BatchNorm2d(512), 
+                nn.ReLU(inplace = True),
+                nn.MaxPool2d(kernel_size = (3,9), stride = 0)
+                )
+        self.concat_mlp_layer = nn.Linear(512, 128)
+        #self.mlp_layer = nn.Linear(128, 6)
+        self.mlp_layer = nn.Linear(128, 2)
+              
+    def forward(self, input):
+        debug('Starting')
+        debug(input.shape)
+        out = self.conv_layers(input)
+        out = self.concat_mlp_layer(out.view(out.shape[0], -1))
+        #out =  self.conv_layers(input)
+        output = self.mlp_layer(out.view(out.shape[0], -1))
+        return output
 
 
 
