@@ -1,10 +1,10 @@
-class snet(nn.Module):
+class conv_net(nn.Module):
 
     def __init__(self):
         '''
         Create the 5 Conv Layer Sound Net network architecture as per the paper - https://arxiv.org/pdf/1610.09001.pdf
         '''
-        super(snet, self).__init__()
+        super(conv_net, self).__init__()
 
         self.conv_layers = nn.Sequential(nn.Conv2d(in_channels = 1, out_channels= 16, kernel_size = 5, stride = 2, padding = 5), 
                                 nn.BatchNorm2d(num_features = 16), 
