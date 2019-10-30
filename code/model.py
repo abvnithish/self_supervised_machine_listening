@@ -1,6 +1,6 @@
 class conv_net(nn.Module):
 
-    def __init__(self, num_input_channels = 3, num_classes = 2):
+    def __init__(self):
         '''
         Create the 5 Conv Layer Sound Net network architecture as per the paper - https://arxiv.org/pdf/1610.09001.pdf
         '''
