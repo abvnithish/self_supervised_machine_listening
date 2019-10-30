@@ -122,28 +122,28 @@ class snet_flip(nn.Module):
         '''
         super(snet_flip, self).__init__()
 
-        self.conv_layers = nn.Sequential(nn.Conv2d(in_channels = 1, out_channels= 16, kernel_size = 5, stride = 2, padding = 2), 
+        self.conv_layers = nn.Sequential(nn.Conv2d(in_channels = 1, out_channels= 16, kernel_size = 5, stride = 2, padding = 4), 
                     nn.BatchNorm2d(num_features = 16), 
                     nn.ReLU(inplace = True),
                     nn.MaxPool2d(kernel_size = 3, stride = (1,2)),
 
-                    nn.Conv2d(in_channels = 16, out_channels = 32, kernel_size = 5, stride = 2, padding = 2),
+                    nn.Conv2d(in_channels = 16, out_channels = 32, kernel_size = 5, stride = 2, padding = 4),
                     nn.BatchNorm2d(32),
                     nn.ReLU(inplace = True),
                     nn.MaxPool2d(kernel_size = 3, stride = (1,2)),
 
-                    nn.Conv2d(in_channels = 32, out_channels = 64, kernel_size = 4, stride = 2, padding = 2),
+                    nn.Conv2d(in_channels = 32, out_channels = 64, kernel_size = 4, stride = 2, padding = 3),
                     nn.BatchNorm2d(64),
                     nn.ReLU(inplace = True),
 
-                    nn.Conv2d(in_channels = 64, out_channels = 128, kernel_size = 4, stride = 2, padding = 2),
+                    nn.Conv2d(in_channels = 64, out_channels = 128, kernel_size = 4, stride = 2, padding = 3),
                     nn.BatchNorm2d(128),
                     nn.ReLU(inplace = True),
 
-                    nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = 4, stride = 2, padding = 2),
+                    nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = 4, stride = 2, padding = 3),
                     nn.BatchNorm2d(256),
                     nn.ReLU(inplace = True),
-                    nn.MaxPool2d(kernel_size = 4, stride = 1),
+                    nn.AdaptiveMaxPool2d((1,1))
 
     #                     nn.Conv2d(in_channels = 256, out_channels = 512, kernel_size = 3, stride = 2, padding = 2),
     #                     nn.BatchNorm2d(512),
@@ -170,28 +170,28 @@ class snet_jigsaw(nn.Module):
         '''
         super(snet_jigsaw, self).__init__()
 
-        self.conv_layers = nn.Sequential(nn.Conv2d(in_channels = 1, out_channels= 16, kernel_size = 5, stride = 2, padding = 2), 
+        self.conv_layers = nn.Sequential(nn.Conv2d(in_channels = 1, out_channels= 16, kernel_size = 5, stride = 2, padding = 4), 
                 nn.BatchNorm2d(num_features = 16), 
                 nn.ReLU(inplace = True),
                 nn.MaxPool2d(kernel_size = 4, stride = (1,2)),
 
-                nn.Conv2d(in_channels = 16, out_channels = 32, kernel_size = 5, stride = 2, padding = 2),
+                nn.Conv2d(in_channels = 16, out_channels = 32, kernel_size = 5, stride = 2, padding = 4),
                 nn.BatchNorm2d(32),
                 nn.ReLU(inplace = True),
                 nn.MaxPool2d(kernel_size = 3, stride = (1,2)),
 
-                nn.Conv2d(in_channels = 32, out_channels = 64, kernel_size = 4, stride = 2, padding = 2),
+                nn.Conv2d(in_channels = 32, out_channels = 64, kernel_size = 4, stride = 2, padding = 3),
                 nn.BatchNorm2d(64),
                 nn.ReLU(inplace = True),
 
-                nn.Conv2d(in_channels = 64, out_channels = 128, kernel_size = 4, stride = 2, padding = 2),
+                nn.Conv2d(in_channels = 64, out_channels = 128, kernel_size = 4, stride = 2, padding = 3),
                 nn.BatchNorm2d(128),
                 nn.ReLU(inplace = True),
 
-                nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = 4, stride = 2, padding = 2),
+                nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = 4, stride = 2, padding = 3),
                 nn.BatchNorm2d(256),
                 nn.ReLU(inplace = True),
-                nn.MaxPool2d(kernel_size = 2, stride = 1),
+                nn.AdaptiveMaxPool2d((1,1))
 
 #                     nn.Conv2d(in_channels = 256, out_channels = 512, kernel_size = 3, stride = 2, padding = 2),
 #                     nn.BatchNorm2d(512),
@@ -234,29 +234,29 @@ class snet_jigsaw_separable(nn.Module):
         '''
         super(snet_jigsaw_separable, self).__init__()
 
-        self.conv_layers = nn.Sequential(nn.Conv2d(in_channels = 3, out_channels= 3, kernel_size = 5, stride = 2, padding = 2, groups=3),
-                nn.Conv2d(in_channels = 3, out_channels= 16, kernel_size = 1, stride = 2, padding = 2),
+        self.conv_layers = nn.Sequential(nn.Conv2d(in_channels = 3, out_channels= 3, kernel_size = 5, stride = 2, padding = 4, groups=3),
+                nn.Conv2d(in_channels = 3, out_channels= 16, kernel_size = 1, stride = 2, padding = 1),
                 nn.BatchNorm2d(num_features = 16), 
                 nn.ReLU(inplace = True),
                 nn.MaxPool2d(kernel_size = 4, stride = (1,2)),
 
-                nn.Conv2d(in_channels = 16, out_channels = 32, kernel_size = 5, stride = 2, padding = 2),
+                nn.Conv2d(in_channels = 16, out_channels = 32, kernel_size = 5, stride = 2, padding = 4),
                 nn.BatchNorm2d(32),
                 nn.ReLU(inplace = True),
                 nn.MaxPool2d(kernel_size = 3, stride = (1,2)),
 
-                nn.Conv2d(in_channels = 32, out_channels = 64, kernel_size = 4, stride = 2, padding = 2),
+                nn.Conv2d(in_channels = 32, out_channels = 64, kernel_size = 4, stride = 2, padding = 3),
                 nn.BatchNorm2d(64),
                 nn.ReLU(inplace = True),
 
-                nn.Conv2d(in_channels = 64, out_channels = 128, kernel_size = 4, stride = 2, padding = 2),
+                nn.Conv2d(in_channels = 64, out_channels = 128, kernel_size = 4, stride = 2, padding = 3),
                 nn.BatchNorm2d(128),
                 nn.ReLU(inplace = True),
 
-                nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = 4, stride = 2, padding = 2),
+                nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = 4, stride = 2, padding = 3),
                 nn.BatchNorm2d(256),
                 nn.ReLU(inplace = True),
-                nn.MaxPool2d(kernel_size = 2, stride = 1),
+                nn.AdaptiveMaxPool2d((1,1))
 
 #                     nn.Conv2d(in_channels = 256, out_channels = 512, kernel_size = 3, stride = 2, padding = 2),
 #                     nn.BatchNorm2d(512),
@@ -288,41 +288,41 @@ class l3net_jigsaw(nn.Module):
         '''
         super(l3net_jigsaw, self).__init__()
 
-        self.conv_layers = nn.Sequential(nn.Conv2d(in_channels = 1, out_channels= 64, kernel_size = 3, padding = 0), 
+        self.conv_layers = nn.Sequential(nn.Conv2d(in_channels = 1, out_channels= 64, kernel_size = 3, padding = 2), 
                 nn.BatchNorm2d(64), 
                 nn.ReLU(inplace = True),
 
-                nn.Conv2d(in_channels = 64, out_channels= 64, kernel_size = 3, padding = 0), 
+                nn.Conv2d(in_channels = 64, out_channels= 64, kernel_size = 3, padding = 2), 
                 nn.BatchNorm2d(64), 
                 nn.ReLU(inplace = True),
                 nn.MaxPool2d(kernel_size = 2, stride = 2),
 
-                nn.Conv2d(in_channels = 64, out_channels= 128, kernel_size = 3, padding = 0), 
+                nn.Conv2d(in_channels = 64, out_channels= 128, kernel_size = 3, padding = 2), 
                 nn.BatchNorm2d(128), 
                 nn.ReLU(inplace = True),
 
-                nn.Conv2d(in_channels = 128, out_channels= 128, kernel_size = 3, padding = 0), 
+                nn.Conv2d(in_channels = 128, out_channels= 128, kernel_size = 3, padding = 2), 
                 nn.BatchNorm2d(128), 
                 nn.ReLU(inplace = True),
                 nn.MaxPool2d(kernel_size = 2, stride = 2),
 
-                nn.Conv2d(in_channels = 128, out_channels= 256, kernel_size = 3, padding = 0), 
+                nn.Conv2d(in_channels = 128, out_channels= 256, kernel_size = 3, padding = 2), 
                 nn.BatchNorm2d(256), 
                 nn.ReLU(inplace = True),
 
-                nn.Conv2d(in_channels = 256, out_channels= 256, kernel_size = 3, padding = 0), 
+                nn.Conv2d(in_channels = 256, out_channels= 256, kernel_size = 3, padding = 2), 
                 nn.BatchNorm2d(256), 
                 nn.ReLU(inplace = True),
                 nn.MaxPool2d(kernel_size = 2, stride = 2),
                                          
-                nn.Conv2d(in_channels = 256, out_channels= 512, kernel_size = 3, padding = 0), 
+                nn.Conv2d(in_channels = 256, out_channels= 512, kernel_size = 3, padding = 2), 
                 nn.BatchNorm2d(512), 
                 nn.ReLU(inplace = True),
 
-                nn.Conv2d(in_channels = 512, out_channels= 512, kernel_size = 3, padding = 0), 
+                nn.Conv2d(in_channels = 512, out_channels= 512, kernel_size = 3, padding = 2), 
                 nn.BatchNorm2d(512), 
                 nn.ReLU(inplace = True),
-                nn.MaxPool2d(kernel_size = (3,9), stride = 0)
+                nn.AdaptiveMaxPool2d((1,1))
                 )
         self.concat_mlp_layer = nn.Linear(1536, 128)
         #self.mlp_layer = nn.Linear(128, 6)
@@ -357,97 +357,39 @@ class l3net_jigsaw_separable(nn.Module):
         '''
         super(l3net_jigsaw_separable, self).__init__()
 
-        self.conv_layers = nn.Sequential(nn.Conv2d(in_channels = 3, out_channels= 3, kernel_size = 3, padding = 0,groups=3),#depthwise
-                nn.Conv2d(in_channels = 3, out_channels= 64, kernel_size = 1, padding = 0),#pointwise
+        self.conv_layers = nn.Sequential(nn.Conv2d(in_channels = 3, out_channels= 3, kernel_size = 3, padding = 2,groups=3),#depthwise
+                nn.Conv2d(in_channels = 3, out_channels= 64, kernel_size = 1, padding = 1),#pointwise
                 nn.BatchNorm2d(64), 
                 nn.ReLU(inplace = True),
 
-                nn.Conv2d(in_channels = 64, out_channels= 64, kernel_size = 3, padding = 0), 
+                nn.Conv2d(in_channels = 64, out_channels= 64, kernel_size = 3, padding = 2), 
                 nn.BatchNorm2d(64), 
                 nn.ReLU(inplace = True),
                 nn.MaxPool2d(kernel_size = 2, stride = 2),
 
-                nn.Conv2d(in_channels = 64, out_channels= 128, kernel_size = 3, padding = 0), 
+                nn.Conv2d(in_channels = 64, out_channels= 128, kernel_size = 3, padding = 2), 
                 nn.BatchNorm2d(128), 
                 nn.ReLU(inplace = True),
 
-                nn.Conv2d(in_channels = 128, out_channels= 128, kernel_size = 3, padding = 0), 
+                nn.Conv2d(in_channels = 128, out_channels= 128, kernel_size = 3, padding = 2), 
                 nn.BatchNorm2d(128), 
                 nn.ReLU(inplace = True),
                 nn.MaxPool2d(kernel_size = 2, stride = 2),
 
-                nn.Conv2d(in_channels = 128, out_channels= 256, kernel_size = 3, padding = 0), 
+                nn.Conv2d(in_channels = 128, out_channels= 256, kernel_size = 3, padding = 2), 
                 nn.BatchNorm2d(256), 
                 nn.ReLU(inplace = True),
 
-                nn.Conv2d(in_channels = 256, out_channels= 256, kernel_size = 3, padding = 0), 
-                nn.BatchNorm2d(256), 
-                nn.ReLU(inplace = True),
-                nn.MaxPool2d(kernel_size = 2, stride = 2),
-                                         
-                nn.Conv2d(in_channels = 256, out_channels= 512, kernel_size = 3, padding = 0), 
-                nn.BatchNorm2d(512), 
-                nn.ReLU(inplace = True),
-
-                nn.Conv2d(in_channels = 512, out_channels= 512, kernel_size = 3, padding = 0), 
-                nn.BatchNorm2d(512), 
-                nn.ReLU(inplace = True),
-                nn.MaxPool2d(kernel_size = (3,9), stride = 0)
-                )
-        self.concat_mlp_layer = nn.Linear(512, 128)
-        #self.mlp_layer = nn.Linear(128, 6)
-        self.mlp_layer = nn.Linear(128, 2)
-              
-    def forward(self, input):
-        debug('Starting')
-        debug(input.shape)
-        out = self.conv_layers(input)
-        out = self.concat_mlp_layer(out.view(out.shape[0], -1))
-        #out =  self.conv_layers(input)
-        output = self.mlp_layer(out.view(out.shape[0], -1))
-        return output
-
-class l3net_flip_separable(nn.Module):
-
-    def __init__(self):
-        '''
-        Create the L3 Net network architecture
-        '''
-        super(l3net_flip_separable, self).__init__()
-
-        self.conv_layers = nn.Sequential(nn.Conv2d(in_channels = 1, out_channels= 1, kernel_size = 3, padding = 0,groups=1),#depthwise
-                nn.Conv2d(in_channels = 1, out_channels= 64, kernel_size = 1, padding = 0),#pointwise
-                nn.BatchNorm2d(64), 
-                nn.ReLU(inplace = True),
-
-                nn.Conv2d(in_channels = 64, out_channels= 64, kernel_size = 3, padding = 0), 
-                nn.BatchNorm2d(64), 
-                nn.ReLU(inplace = True),
-                nn.MaxPool2d(kernel_size = 2, stride = 2),
-
-                nn.Conv2d(in_channels = 64, out_channels= 128, kernel_size = 3, padding = 0), 
-                nn.BatchNorm2d(128), 
-                nn.ReLU(inplace = True),
-
-                nn.Conv2d(in_channels = 128, out_channels= 128, kernel_size = 3, padding = 0), 
-                nn.BatchNorm2d(128), 
-                nn.ReLU(inplace = True),
-                nn.MaxPool2d(kernel_size = 2, stride = 2),
-
-                nn.Conv2d(in_channels = 128, out_channels= 256, kernel_size = 3, padding = 0), 
-                nn.BatchNorm2d(256), 
-                nn.ReLU(inplace = True),
-
-                nn.Conv2d(in_channels = 256, out_channels= 256, kernel_size = 3, padding = 0), 
+                nn.Conv2d(in_channels = 256, out_channels= 256, kernel_size = 3, padding = 2), 
                 nn.BatchNorm2d(256), 
                 nn.ReLU(inplace = True),
                 nn.MaxPool2d(kernel_size = 2, stride = 2),
                                          
-                nn.Conv2d(in_channels = 256, out_channels= 512, kernel_size = 3, padding = 0), 
+                nn.Conv2d(in_channels = 256, out_channels= 512, kernel_size = 3, padding = 2), 
                 nn.BatchNorm2d(512), 
                 nn.ReLU(inplace = True),
 
-                nn.Conv2d(in_channels = 512, out_channels= 512, kernel_size = 3, padding = 0), 
+                nn.Conv2d(in_channels = 512, out_channels= 512, kernel_size = 3, padding = 2), 
                 nn.BatchNorm2d(512), 
                 nn.ReLU(inplace = True),
                 nn.AdaptiveMaxPool2d((1,1))
@@ -460,9 +402,79 @@ class l3net_flip_separable(nn.Module):
         debug('Starting')
         debug(input.shape)
         out = self.conv_layers(input)
+        debug('After sequential conv layer')
+        debug(out.shape)
         out = self.concat_mlp_layer(out.view(out.shape[0], -1))
+        debug('After concat mlp layer')
+        debug(out.shape)
         #out =  self.conv_layers(input)
         output = self.mlp_layer(out.view(out.shape[0], -1))
+        debug('After final layer')
+        debug(output.shape)
+        return output
+
+class l3net_flip_separable(nn.Module):
+
+    def __init__(self):
+        '''
+        Create the L3 Net network architecture
+        '''
+        super(l3net_flip_separable, self).__init__()
+
+        self.conv_layers = nn.Sequential(nn.Conv2d(in_channels = 1, out_channels= 1, kernel_size = 3, padding = 2,groups=1),#depthwise
+                nn.Conv2d(in_channels = 1, out_channels= 64, kernel_size = 1, padding = 1),#pointwise
+                nn.BatchNorm2d(64), 
+                nn.ReLU(inplace = True),
+
+                nn.Conv2d(in_channels = 64, out_channels= 64, kernel_size = 3, padding = 2), 
+                nn.BatchNorm2d(64), 
+                nn.ReLU(inplace = True),
+                nn.MaxPool2d(kernel_size = 2, stride = 2),
+
+                nn.Conv2d(in_channels = 64, out_channels= 128, kernel_size = 3, padding = 2), 
+                nn.BatchNorm2d(128), 
+                nn.ReLU(inplace = True),
+
+                nn.Conv2d(in_channels = 128, out_channels= 128, kernel_size = 3, padding = 2), 
+                nn.BatchNorm2d(128), 
+                nn.ReLU(inplace = True),
+                nn.MaxPool2d(kernel_size = 2, stride = 2),
+
+                nn.Conv2d(in_channels = 128, out_channels= 256, kernel_size = 3, padding = 2), 
+                nn.BatchNorm2d(256), 
+                nn.ReLU(inplace = True),
+
+                nn.Conv2d(in_channels = 256, out_channels= 256, kernel_size = 3, padding = 2), 
+                nn.BatchNorm2d(256), 
+                nn.ReLU(inplace = True),
+                nn.MaxPool2d(kernel_size = 2, stride = 2),
+                                         
+                nn.Conv2d(in_channels = 256, out_channels= 512, kernel_size = 3, padding = 2), 
+                nn.BatchNorm2d(512), 
+                nn.ReLU(inplace = True),
+
+                nn.Conv2d(in_channels = 512, out_channels= 512, kernel_size = 3, padding = 2), 
+                nn.BatchNorm2d(512), 
+                nn.ReLU(inplace = True),
+                nn.AdaptiveMaxPool2d((1,1))
+                )
+        self.concat_mlp_layer = nn.Linear(512, 128)
+        #self.mlp_layer = nn.Linear(128, 6)
+        self.mlp_layer = nn.Linear(128, 2)
+              
+    def forward(self, input):
+        debug('Starting')
+        debug(input.shape)
+        out = self.conv_layers(input)
+        debug('After sequential conv layer')
+        debug(out.shape)
+        out = self.concat_mlp_layer(out.view(out.shape[0], -1))
+        #out =  self.conv_layers(input)
+        debug('After concat mlp layer')
+        debug(out.shape)
+        output = self.mlp_layer(out.view(out.shape[0], -1))
+        debug('After final layer')
+        debug(output.shape)
         return output
 
 
