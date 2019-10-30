@@ -37,7 +37,6 @@ class conv_net(nn.Module):
                                 nn.ReLU(inplace = True),
                                 nn.AdaptiveAvgPool2d(output_size = 1)
                                 )
-        self.mlp_layer = nn.Linear(1024*num_input_channels, num_classes)
               
     def forward(self, input):
         conv_strips = []
@@ -48,5 +47,4 @@ class conv_net(nn.Module):
             conv_strips.append(self.conv_layers(conv_strip))
 
         concat_out=torch.cat(conv_strips,1)
-        output = self.mlp_layer(concat_out.view(out.shape[0], -1))
-        return output, F.softmax(output, dim = 1)
+        return concat_out
