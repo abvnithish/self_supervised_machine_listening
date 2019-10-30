@@ -1,6 +1,6 @@
 class conv_net(nn.Module):
 
-    def __init__(self):
+    def __init__(self, num_input_channels = 3, num_classes = 2):
         '''
         Create the 5 Conv Layer Sound Net network architecture as per the paper - https://arxiv.org/pdf/1610.09001.pdf
         '''
@@ -37,19 +37,7 @@ class conv_net(nn.Module):
                                 nn.ReLU(inplace = True),
                                 nn.AdaptiveAvgPool2d(output_size = 1)
                                 )
-        self.concat_mlp_layer = nn.Sequential(nn.Linear(3072, 2048),
-                                              nn.BatchNorm1d(num_features = 2048), 
-                                              nn.ReLU(inplace = True),
-                                              
-                                              nn.Linear(2048, 1024),
-                                              nn.BatchNorm1d(num_features = 1024), 
-                                              nn.ReLU(inplace = True),
-                                              
-                                              nn.Linear(1024, 256),
-                                              nn.BatchNorm1d(num_features = 256), 
-                                              nn.ReLU(inplace = True),
-                                             )
-        self.mlp_layer = nn.Linear(256, 2)
+        self.mlp_layer = nn.Linear(1024*num_input_channels, num_classes)
               
     def forward(self, input):
         conv_strips = []
@@ -60,6 +48,5 @@ class conv_net(nn.Module):
             conv_strips.append(self.conv_layers(conv_strip))
 
         concat_out=torch.cat(conv_strips,1)
-        out = self.concat_mlp_layer(concat_out.view(concat_out.shape[0], -1))
-        output = self.mlp_layer(out.view(out.shape[0], -1))
+        output = self.mlp_layer(concat_out.view(out.shape[0], -1))
         return output, F.softmax(output, dim = 1)
