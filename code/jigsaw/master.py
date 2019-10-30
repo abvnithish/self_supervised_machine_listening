@@ -96,8 +96,12 @@ class Master():
         self.train_files = np.array(self.filenames)[indices[:train_index]]
         self.val_files = np.array(self.filenames)[indices[train_index:]]
 
-        train_dataset = fmaDataset(self.device, self.root_dir, self.train_files, sr = self.sr, transform_prob = self.transform_prob, reduce_two_class= self.reduce_two_class, mode=self.mode, num_seconds=self.num_seconds)
-        val_dataset = fmaDataset(self.device, self.root_dir, self.val_files, sr = self.sr, transform_prob = self.transform_prob, reduce_two_class= self.reduce_two_class, mode=self.mode, num_seconds=self.num_seconds)
+        mean = torch.tensor([-19.7743, -19.7753, -19.7189]).to(self.device)
+        std = torch.tensor([13.4913, 13.4617, 13.4761]).to(self.device)
+        self.transform = transform = transforms.Compose([transforms.Normalize(mean, std, inplace=False)])
+
+        train_dataset = fmaDataset(self.device, self.root_dir, self.train_files, sr = self.sr, transform_prob = self.transform_prob, transform = self.transform, reduce_two_class= self.reduce_two_class, mode=self.mode, num_seconds=self.num_seconds)
+        val_dataset = fmaDataset(self.device, self.root_dir, self.val_files, sr = self.sr, transform_prob = self.transform_prob, transform = self.transform, reduce_two_class= self.reduce_two_class, mode=self.mode, num_seconds=self.num_seconds)
         self.input_size = train_dataset.input_size
         self.datasets = {'train': train_dataset, 'valid': val_dataset}
         self.dataset_sizes = {x: len(self.datasets[x]) for x in ['train', 'valid']}
@@ -347,13 +351,14 @@ class Master():
 class fmaDataset(Dataset):
 
 # def __init__(self, device, cqt_waveforms, transform_type, transform_prob):
-    def __init__(self, device, root_dir, files, sr, transform_prob, reduce_two_class, mode, num_seconds):
+    def __init__(self, device, root_dir, files, sr, transform_prob, transform, reduce_two_class, mode, num_seconds):
 
         self.device = device
         self.root_dir = root_dir
         self.files = files
         self.sr = sr
         self.transform_prob = transform_prob
+        self.transform = transform
         self.reduce_two_class = reduce_two_class
         self.mode = mode
         self.num_seconds = num_seconds
@@ -409,7 +414,8 @@ class fmaDataset(Dataset):
             data = torch.FloatTensor(data).unsqueeze(0)
         #debug(data.shape)
         #debug(label.shape)
-        return data.to(self.device), label.to(self.device)
+        data = self.transform(data.to(self.device))
+        return data, label.to(self.device)
 
     def getitem_for_eval(self, idx):
         #file = np.random.choice(files)
