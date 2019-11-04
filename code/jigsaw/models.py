@@ -57,7 +57,7 @@ def load_model(device, model_arch , mode, separable_falg):
     elif model_name == 'l3net_flip_separable':
         model = l3net_flip_separable().to(device)
     
-    return model
+    return model,model_name
 
 class anet_jigsaw(nn.Module):
 

@@ -14,12 +14,16 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
-#from torchvision import transforms
+from torchvision import transforms
 import librosa
 from librosa.display import specshow
 import scipy, IPython.display as ipd
 # from utils import *
 from torch.utils.tensorboard import SummaryWriter
+from datetime import datetime
+import pickle as pkl
+
+
 ### Setting seed for reproducibility
 random_state = 7
 np.random.seed(random_state)
@@ -50,6 +54,7 @@ class Master():
         self.reduce_two_class = reduce_two_class
         self.mode = mode
         self.num_seconds = num_seconds
+        print(f'Number of Seconds: {self.num_seconds}')
         print(f'MODE: {mode}')
         print('Getting Train & Validation Datasets')
         self.get_datasets()
@@ -59,7 +64,7 @@ class Master():
         print(f'Length of Train dataloader: {len(self.dataloaders["train"])} \t Validation dataloader: {len(self.dataloaders["valid"])}')
         print('\t --Done')
         self.model = model
-        self.model = torch.nn.DataParallel(self.model)
+        #self.model = torch.nn.DataParallel(self.model)
         print('\t --Done')
         print('Init actions done')
 
@@ -98,8 +103,8 @@ class Master():
 
         mean = torch.tensor([-19.7743, -19.7753, -19.7189]).to(self.device)
         std = torch.tensor([13.4913, 13.4617, 13.4761]).to(self.device)
-        self.transform = transform = transforms.Compose([transforms.Normalize(mean, std, inplace=False)])
-
+        self.transform = transforms.Compose([transforms.Normalize(mean, std, inplace=False)])
+        print(f'TRANSFORMING DATA!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         train_dataset = fmaDataset(self.device, self.root_dir, self.train_files, sr = self.sr, transform_prob = self.transform_prob, transform = self.transform, reduce_two_class= self.reduce_two_class, mode=self.mode, num_seconds=self.num_seconds)
         val_dataset = fmaDataset(self.device, self.root_dir, self.val_files, sr = self.sr, transform_prob = self.transform_prob, transform = self.transform, reduce_two_class= self.reduce_two_class, mode=self.mode, num_seconds=self.num_seconds)
         self.input_size = train_dataset.input_size
@@ -119,13 +124,37 @@ class Master():
            specshow(logscalogram[:, :420])
 
         return cqt, logscalogram
+    
+    def visualize_cqts(self, filename, start_width, perm_map,  display=True, figsize=(10,5)):
+        
+        logscalogram = np.load(self.root_dir + filename)
+        second_width = int(1280/30)
+        desired_width = self.num_seconds * second_width   
+        chosen_split = logscalogram[:, start_width: start_width + desired_width]
+        height = logscalogram.shape[0]
+        fig, ax = plt.subplots(1, 2, sharex='col', sharey='row', figsize=figsize)
+        if display:
+            ax[0].set_title('ORIGINAL SPECGRAM')
+            specshow(chosen_split,ax=ax[0])
+        jigsaw_splits = [np.split(chosen_split, 3, axis=1)][0] 
+        final_jigsaw = np.concatenate(np.array([jigsaw_splits[x][:,:-5] for x in perm_map]), axis=1)
+        if display:
+            ax[1].set_title('FULL JIGSAW SPECGRAM')
+            jigsaw_xs = (desired_width * np.array([1, 2, 3]) / 3).astype('int')
+            for jigsaw_x in jigsaw_xs:
+                plt.plot([jigsaw_x, jigsaw_x], [0, height],'--', color='w', linewidth=2.0)
+            specshow(final_jigsaw,ax=ax[1])
+            plt.show()
+        return
 
 
     def train(self, num_epochs, learning_rate, print_every, verbose = True, save = False, model_save_path = '/beegfs/sc6957/capstone/', checkpoint_every = 5):
         '''
         Function to train the model
         '''
-
+        if save:
+            print(f'Saving model at {model_save_path}')
+              
         print(f'Instantiating Optimzer, Loss Criterion, Scheduler')
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr = learning_rate)
         self.criterion = nn.CrossEntropyLoss()
@@ -225,11 +254,20 @@ class Master():
         valid_patch = matplotlib.patches.Patch(color=sns.color_palette()[1], label= 'Valid')
         plt.legend(handles=[train_patch, valid_patch])
         if save:
-            plt.savefig(os.path.join(model_save_path, 'EpochWiseLoss_' + phase + '.svg'))
+            plt.savefig(os.path.join(model_save_path + 'EpochWiseLoss_' + phase + '.svg'))
+        plt.show()
+              
+          
+        fig = plt.figure()
+        plt.plot(self.acc_dict['train'])
+        plt.plot(self.acc_dict['valid'])
+        plt.title('Accuracy per epoch')
+        plt.legend(handles=[train_patch, valid_patch])
+        if save:
+            plt.savefig(os.path.join(model_save_path + 'EpochWiseAccuracy_' + phase + '.svg'))
         plt.show()
 
-
-        log_dir = os.path.join(model_save_path + 'logs')
+        log_dir = os.path.join(model_save_path + 'logs/'  + datetime.now().strftime("%Y%m%d-%H%M%S"))
         writer = SummaryWriter(log_dir=log_dir)
         for phase in ['train','valid']:
             n = len(self.acc_dict[phase])
@@ -238,15 +276,6 @@ class Master():
                 writer.add_scalar(f'Accuracy/{phase}',self.acc_dict[phase][n_iter], n_iter)
         writer.close()
               
-        fig = plt.figure()
-        plt.plot(self.acc_dict['train'])
-        plt.plot(self.acc_dict['valid'])
-        plt.title('Accuracy per epoch')
-        plt.legend(handles=[train_patch, valid_patch])
-        if save:
-            plt.savefig(os.path.join(model_save_path, 'EpochWiseAccuracy_' + phase + '.svg'))
-        plt.show()
-
     def get_predictions(self, phase = 'valid', save = False, preds_save_path = '/beegfs/sc6957/capstone/predictions.pkl'):
         
         self.predictions = []
@@ -255,28 +284,28 @@ class Master():
             if file_num % 100:
                 print(f'Phase: {phase}   Iteration {file_num+1}/{len(self.datasets[phase].files)}', end="\r")
 
-            start_width, inputs, labels = self.datasets[phase].getitem_for_eval(file_num)
+            start_width, chosen_perm, inputs, labels = self.datasets[phase].getitem_for_eval(file_num)
             inputs = inputs.unsqueeze(0).to(self.device)
             labels = labels.to(self.device)
 
             with torch.no_grad():
-                logits, outputs = self.model(inputs)
-                _, preds = torch.max(outputs, 1)
+                logits = self.model(inputs)
+                _, preds = torch.max(logits, 1)
 
             self.predictions.append([file_name, 
                                     start_width,
+                                    chosen_perm,
                                     labels.item(), 
-                                    logits.cpu().numpy().squeeze(), 
-                                    outputs.cpu().numpy().squeeze(), 
+                                    logits.cpu().numpy().squeeze(),  
                                     preds.item()])
 
-            if save:
-                with open(preds_save_path, 'wb') as f:
-                    pkl.dump(self.predictions, f)
+        if save:
+            with open(preds_save_path, 'wb') as f:
+                pkl.dump(self.predictions, f)
 
-                print(f'Predictions list pickled at {preds_save_path}')
+            print(f'Predictions list pickled at {preds_save_path}')
 
-            return self.predictions
+        return self.predictions
 
 
     def evaluate_performance(self, compute_train = False, compute_val = True, verbose = True):
@@ -309,8 +338,8 @@ class Master():
             labels = labels.to(self.device)
 
             with torch.no_grad():
-                logits, outputs = self.model(inputs)
-                _, preds = torch.max(outputs, 1)
+                logits = self.model(inputs)
+                _, preds = torch.max(logits, 1)
 
             running_corrects += torch.sum(preds == labels.squeeze()).item()
 
@@ -378,15 +407,23 @@ class fmaDataset(Dataset):
     def __getitem__(self, idx):
         #file = np.random.choice(files)
         logscalogram = np.load(self.root_dir + self.files[idx])
-        try:
-            assert logscalogram[:, :1280].shape == (84, 1280)
-        except:
-            print(self.files[idx])
-            print(logscalogram[:, :1280].shape)
+#         try:
+#             assert logscalogram[:, :1280].shape == (84, 1280)
+#         except:
+#             print(self.files[idx])
+#             print(logscalogram[:, :1280].shape)
         
         second_width = int(1280/30)
         desired_width = self.num_seconds * second_width   
+        
+              
+        try:
+            assert logscalogram.shape[1] >= desired_width
+        except:
+            return self.__getitem__(int(np.random.random() * len(self.files)))
+              
         start_width = random.randint(0, logscalogram.shape[1] - desired_width)
+
         chosen_split = logscalogram[:, start_width: start_width + desired_width]
 
         if self.mode == 'jigsaw':
@@ -420,14 +457,21 @@ class fmaDataset(Dataset):
     def getitem_for_eval(self, idx):
         #file = np.random.choice(files)
         logscalogram = np.load(self.root_dir + self.files[idx])
-        try:
-            assert logscalogram[:, :1280].shape == (84, 1280)
-        except:
-            print(self.files[idx])
-            print(logscalogram[:, :1280].shape)
-        
+#         try:
+#             assert logscalogram[:, :1280].shape == (84, 1280)
+#         except:
+#             print(self.files[idx])
+#             print(logscalogram[:, :1280].shape)
+              
+
+              
         second_width = int(1280/30)
         desired_width = self.num_seconds * second_width   
+              
+        try:
+            assert logscalogram.shape[1] >= desired_width
+        except:
+            return self.getitem_for_eval(int(np.random.random() * len(self.files)))
         start_width = random.randint(0, logscalogram.shape[1] - desired_width)
         chosen_split = logscalogram[:, start_width: start_width + desired_width]
 
@@ -456,7 +500,7 @@ class fmaDataset(Dataset):
             data = torch.FloatTensor(data).unsqueeze(0)
         #debug(data.shape)
         #debug(label.shape)
-        return start_width,data.to(self.device), label.to(self.device)
+        return start_width, chosen_perm[2], data.to(self.device), label.to(self.device)
 
 
 
