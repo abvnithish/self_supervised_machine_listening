@@ -42,7 +42,7 @@ class Master():
     '''
     Base class for Capstone
     '''
-    def __init__(self, device, root_dir, path_file = '/checksums', sr = 22050, batch_size = 64, val_split = 0.2, transform_prob = 0.5, reduce_two_class=False, mode='jigsaw', model=None, num_seconds = 10):
+    def __init__(self, device, root_dir, path_file = '/checksums', sr = 22050, batch_size = 64, val_split = 0.2, transform_prob = 0.5, reduce_two_class=False, mode='jigsaw', model=None, num_seconds = 10, transform_data = False):
           
         self.device = device
         self.root_dir = root_dir
@@ -55,6 +55,7 @@ class Master():
         self.mode = mode
         self.num_seconds = num_seconds
         print(f'Number of Seconds: {self.num_seconds}')
+        self.transform = transform_data
         print(f'MODE: {mode}')
         print('Getting Train & Validation Datasets')
         self.get_datasets()
@@ -64,6 +65,7 @@ class Master():
         print(f'Length of Train dataloader: {len(self.dataloaders["train"])} \t Validation dataloader: {len(self.dataloaders["valid"])}')
         print('\t --Done')
         self.model = model
+        
         #self.model = torch.nn.DataParallel(self.model)
         print('\t --Done')
         print('Init actions done')
@@ -103,8 +105,9 @@ class Master():
 
         mean = torch.tensor([-19.7743, -19.7753, -19.7189]).to(self.device)
         std = torch.tensor([13.4913, 13.4617, 13.4761]).to(self.device)
-        self.transform = transforms.Compose([transforms.Normalize(mean, std, inplace=False)])
-        print(f'TRANSFORMING DATA!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        if self.transform:
+              self.transform = transforms.Compose([transforms.Normalize(mean, std, inplace=False)])
+              print(f'TRANSFORMING DATA!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         train_dataset = fmaDataset(self.device, self.root_dir, self.train_files, sr = self.sr, transform_prob = self.transform_prob, transform = self.transform, reduce_two_class= self.reduce_two_class, mode=self.mode, num_seconds=self.num_seconds)
         val_dataset = fmaDataset(self.device, self.root_dir, self.val_files, sr = self.sr, transform_prob = self.transform_prob, transform = self.transform, reduce_two_class= self.reduce_two_class, mode=self.mode, num_seconds=self.num_seconds)
         self.input_size = train_dataset.input_size
@@ -451,7 +454,8 @@ class fmaDataset(Dataset):
             data = torch.FloatTensor(data).unsqueeze(0)
         #debug(data.shape)
         #debug(label.shape)
-        data = self.transform(data.to(self.device))
+        if self.transform:
+              data = self.transform(data.to(self.device))
         return data, label.to(self.device)
 
     def getitem_for_eval(self, idx):
