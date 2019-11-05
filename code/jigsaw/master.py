@@ -345,7 +345,7 @@ class Master():
                 _, preds = torch.max(logits, 1)
 
             running_corrects += torch.sum(preds == labels.squeeze()).item()
-
+        print(f'no of correct: {running_corrects}\n total: {self.dataset_sizes[phase]}')
         overall_acc = running_corrects / self.dataset_sizes[phase]
 
         if verbose:
