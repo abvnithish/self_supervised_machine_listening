@@ -75,16 +75,27 @@ class Master():
         Returns a list with paths to different files
         '''
         self.filenames = []
-        self.exclude_files = ['098/098567.mp3_cqt.npy', '098/098565.mp3_cqt.npy', '098/098569.mp3_cqt.npy']
-        print(f'Excluding these {len(self.exclude_files)} files - {self.exclude_files}')
-        if os.path.exists(self.root_dir + self.path_file):
-            with open(self.root_dir + self.path_file) as fp:
-                lines = fp.readlines()
-                for line in lines:
-                    track_id, file_name = line.split()
-                    if os.path.exists(self.root_dir + file_name + '_cqt.npy'):
-                        if file_name + '_cqt.npy' not in self.exclude_files:
-                            self.filenames.append(file_name + '_cqt.npy')
+        exclusion_file = open('../exclusion_list', 'rb')
+        exclusion_list = pkl.load(exclusion_file)
+        exclusion_file.close()
+        self.exclude_files = [filename+'.mp3_cqt.npy' for filename in exclusion_list]
+        if 'small' in self.root_dir:    
+            self.exclude_files += ['098/098567.mp3_cqt.npy', '098/098565.mp3_cqt.npy', '098/098569.mp3_cqt.npy']
+        print(f'Excluding {len(self.exclude_files)} files')
+        if 'large' in self.root_dir and os.path.exists('./final_filenames.npy'):
+            final_filenames = open('final_filenames.npy','rb')
+            self.filenames = np.load(final_filenames)              
+        else:
+            if os.path.exists(self.root_dir + self.path_file):
+                with open(self.root_dir + self.path_file) as fp:
+                    lines = fp.readlines()
+                    for line in lines:
+                        track_id, file_name = line.split()
+                        if os.path.exists(self.root_dir + file_name + '_cqt.npy'):
+                            if file_name + '_cqt.npy' not in self.exclude_files:
+                                self.filenames.append(file_name + '_cqt.npy')
+            final_filenames = open('final_filenames.npy','wb')
+            np.save(final_filenames,np.array(self.filenames))
         print(f'There are a total of {len(self.filenames) + 1} music files in the root directory')
         return self.filenames    
 
@@ -151,10 +162,11 @@ class Master():
         return
 
 
-    def train(self, num_epochs, learning_rate, print_every, verbose = True, save = False, model_save_path = '/beegfs/sc6957/capstone/', checkpoint_every = 5):
+    def train(self, reload_model, num_epochs, learning_rate, print_every, reload = True, verbose = True, save = False, model_save_path = '/beegfs/sc6957/capstone/models',model_name='untitled', checkpoint_every = 5):
         '''
         Function to train the model
         '''
+        model_save_path += model_name
         if save:
             print(f'Saving model at {model_save_path}')
               
@@ -169,13 +181,23 @@ class Master():
 
         start_time = time.time()
 
+        if reload_model is None:
+            self.best_acc = 0.0
+            self.acc_dict = {'train':[],'valid':[]}
+            self.loss_dict = {'train':[],'valid':[]}
+            starting_epoch = 0
+        else:
+            print('Loading previous model...')
+            self.best_acc = reload_model['bestValAcc']
+            self.acc_dict = {'train':reload_model['acc_dict']['train'],'valid':reload_model['acc_dict']['valid']}
+            self.loss_dict = {'train':reload_model['loss_dict']['train'],'valid':reload_model['loss_dict']['valid']}
+            self.model.load_state_dict(reload_model['modelStateDict'])
+            starting_epoch = len(reload_model['loss_dict']['train'])
+            print(f'Starting Epoch: {starting_epoch}| Best_Val_Acc: {self.best_acc:.4f}')
+        
         self.best_model_wts = copy.deepcopy(self.model.state_dict())
-        self.best_acc = 0.0
-
-        self.acc_dict = {'train':[],'valid':[]}
-        self.loss_dict = {'train':[],'valid':[]}
-
-        for epoch in range(num_epochs):
+              
+        for epoch in range(starting_epoch,num_epochs):
 
             if verbose:
                 if epoch % print_every == 0:
@@ -218,6 +240,8 @@ class Master():
                     if epoch % print_every == 0:
                         print()
                         print(f'{phase} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
+                        if phase == 'valid':
+                            print(f'Best Val Acc: {self.best_acc}')
 
                 if phase == 'train':
                     self.loss_dict['train'].append(epoch_loss)
@@ -238,9 +262,9 @@ class Master():
 
             if save:
                 if epoch % checkpoint_every == 0 and phase == 'valid':
-                    if os.path.exists(os.path.join(model_save_path + 'checkpoint_model.pth')):
-                        os.remove(os.path.join(model_save_path + 'checkpoint_model.pth'))
-                    self.checkpoint_model(os.path.join(model_save_path + 'checkpoint_model.pth'), epoch)
+                    if os.path.exists(os.path.join(model_save_path + f'checkpoint_model_{epoch}.pth')):
+                        os.remove(os.path.join(model_save_path + f'checkpoint_model_{epoch}.pth'))
+                    self.checkpoint_model(os.path.join(model_save_path + f'checkpoint_model_{epoch}.pth'), epoch)
                     print(f'Successfully checkpointed model after {epoch} epochs')
 
         time_elapsed = time.time() - start_time
