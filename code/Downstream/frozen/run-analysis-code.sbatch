@@ -22,4 +22,4 @@ module load cudnn/10.0v7.6.2.24
 
 cd $HOME
 
-python -W ignore $HOME/self_supervised_machine_listening/code/downstream/trng_size_analysis.py $1
+python -W ignore $HOME/self_supervised_machine_listening/code/downstream/frozen/trng_size_analysis.py $1

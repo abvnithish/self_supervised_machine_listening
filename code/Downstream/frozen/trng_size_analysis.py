@@ -26,7 +26,8 @@ if torch.cuda.is_available():
     device = torch.device('cuda')
 else:
     device = torch.device('cpu')
-    
+
+###
 import torchvision.models as models
 resnet18 = models.resnet18().to(device)
 alexnet = models.alexnet().to(device)
@@ -34,7 +35,8 @@ vgg16 = models.vgg16().to(device)
 squeezenet = models.squeezenet1_0().to(device)
 densenet = models.densenet161().to(device)
 inception = models.inception_v3().to(device)
-    
+###
+
 #####
 DATA_ROOT = '/beegfs/bva212/openmic-2018'
 OPENMIC = np.load(os.path.join(DATA_ROOT, 'openmic-2018.npz'), allow_pickle=True)
@@ -46,25 +48,25 @@ remain_set = set(np.arange(len_data))-set(idx_train)
 idx_test = np.random.choice(list(remain_set), int(len_data*0.1), replace=False)
 idx_val = list(remain_set-set(idx_test))
 
-Y_mask_train = Y_mask[idx_train]
-Y_mask_val = Y_mask[idx_val]
-Y_mask_test = Y_mask[idx_test]
+# Y_mask_train = Y_mask[idx_train]
+# Y_mask_val = Y_mask[idx_val]
+# Y_mask_test = Y_mask[idx_test]
+#
+# label_train = Y_true[idx_train]
+# label_val = Y_true[idx_val]
+# label_test = Y_true[idx_test]
 
-label_train = Y_true[idx_train]
-label_val = Y_true[idx_val]
-label_test = Y_true[idx_test]
-
-weights_train = np.sum(Y_mask_train, axis= 1)/20
-new_weights_train = weights_train.reshape(-1,1)*Y_mask_train
-weights_val = np.sum(Y_mask_val, axis= 1)/20
-new_weights_val = weights_val.reshape(-1,1)*Y_mask_val
-weights_test = np.sum(Y_mask_test, axis= 1)/20
-new_weights_test = weights_test.reshape(-1,1)*Y_mask_test
+# weights_train = np.sum(Y_mask_train, axis= 1)/20
+# new_weights_train = weights_train.reshape(-1,1)*Y_mask_train
+# weights_val = np.sum(Y_mask_val, axis= 1)/20
+# new_weights_val = weights_val.reshape(-1,1)*Y_mask_val
+# weights_test = np.sum(Y_mask_test, axis= 1)/20
+# new_weights_test = weights_test.reshape(-1,1)*Y_mask_test
 
 class CQTLoader(Dataset):
 
-    def __init__(self, root_dir, files, weights, label):
-        self.weights = weights
+    def __init__(self, root_dir, files, mask, label):
+        self.mask = mask
         self.device = device
         self.root_dir = root_dir
         self.files = files
@@ -75,9 +77,9 @@ class CQTLoader(Dataset):
 
     def __getitem__(self, idx):
         logscalogram = np.load(self.root_dir + self.files[idx]+'_cqt.npy')
-        weight = self.weights[idx]
+        mask = self.mask[idx]
         label = self.label[idx]
-        return {'logscalogram': logscalogram[np.newaxis, :], 'label': label[np.newaxis, :], 'weight': weight[np.newaxis,:]}
+        return {'logscalogram': logscalogram[np.newaxis, :], 'label': label[np.newaxis, :], 'mask': mask[np.newaxis,:]}
 
 filenames = []
 root_dir = '/beegfs/bva212/openmic-2018/cqt_full/'
@@ -88,7 +90,9 @@ def my_collate(batch):
     data = np.concatenate([item['logscalogram'] for item in batch],axis=0)
     data = np.expand_dims(data, axis = 1)
     target = np.concatenate([item['label'] for item in batch],axis=0)
-    weight = np.concatenate([item['weight'] for item in batch],axis=0)
+    mask_sum = np.sum([item['mask'] for item in batch], axis=0)
+    mask_sum = np.where(mask_sum == 0, 1, mask_sum)
+    weight = np.concatenate([item['mask'] / mask_sum for item in batch], axis=0)
     return [torch.from_numpy(data).float(), torch.from_numpy(target).float(), torch.from_numpy(weight).float()]
 
 # Train_dataset = CQTLoader(root_dir, sample_key[idx_train], new_weights_train, label_train)
@@ -97,13 +101,13 @@ def my_collate(batch):
 #                                               shuffle = True,
 #                                           collate_fn = my_collate)
 
-Val_dataset = CQTLoader(root_dir, sample_key[idx_val], new_weights_val, label_val)
-Val_loader = DataLoader(dataset = Val_dataset, 
+Val_dataset = CQTLoader(root_dir, sample_key[idx_val], Y_mask[idx_val], Y_true[idx_val])
+Val_loader = DataLoader(dataset = Val_dataset,
                                               batch_size = BATCH_SIZE,
                                               shuffle = True,
                                         collate_fn = my_collate)
 
-Test_dataset = CQTLoader(root_dir, sample_key[idx_test], new_weights_test, label_test)
+Test_dataset = CQTLoader(root_dir, sample_key[idx_test], Y_mask[idx_test], Y_true[idx_test])
 Test_loader = DataLoader(dataset = Test_dataset, 
                                               batch_size = BATCH_SIZE,
                                               shuffle = True,
@@ -219,7 +223,7 @@ def train_model(train_loader, val_loader, model, optimizer, scheduler, num_epoch
         val_acc_list.append(val_acc)
         val_loss_list.append(val_loss)
         scheduler.step(val_acc)
-#         print("Epoch:{}, Validation Accuracy:{:.2f}, Training Acc: {:.2f}, Val Loss: {:.5f}, Train Loss: {:.5f}".format(epoch+1, val_acc, train_acc, val_loss, train_loss))
+        print("Epoch:{}, Validation Accuracy:{:.2f}, Training Acc: {:.2f}, Val Loss: {:.5f}, Train Loss: {:.5f}".format(epoch+1, val_acc, train_acc, val_loss, train_loss))
     return train_acc_list, train_loss_list, val_acc_list, val_loss_list, best_model_state_dict
         
 class Identity(torch.nn.Module):
@@ -255,11 +259,11 @@ class SimpleMLP_Model(nn.Module):
 
 sizes = [10, 50, 250, 500, 1000]
 model_path_list = [('','random_init'),
-                              ('/beegfs/sc6957/capstone/models/20191105/snet2_jigsaw_large_checkpoint_model_5.pth', 'jigsaw_linear_chkpnt_5'),
-                              ('/beegfs/sc6957/capstone/models/20191106/snet2_jigsaw_large_best_model.pth', 'jigsaw_linear_best'),
+                              ('/beegfs/sc6957/capstone/models/20191105/snet2_jigsaw_large_checkpoint_model_5.pth', 'jigsaw_10_3_wfc_chkpnt_5'),
+                              ('/beegfs/sc6957/capstone/models/20191106/snet2_jigsaw_large_best_model.pth', 'jigsaw_10_3_wfc_best'),
                               ('/beegfs/bva212/capstone/new_model/checkpoint_model.pth', 'time_reversal_chkpnt_15'),
                               ('/beegfs/bva212/capstone/new_model/best_model.pth', 'time_reversal_best'),
-                              ('/beegfs/sc6957/capstone/models/20191116/snet2_jigsaw_large_best_model.pth', 'jigsaw_3_1_linear_best'),
+                              ('/beegfs/sc6957/capstone/models/20191116/snet2_jigsaw_large_best_model.pth', 'jigsaw_3_1_wfc_best'),
                               ('/beegfs/sc6957/capstone/models/20191116/snet3_jigsaw_large_best_model.pth', 'jigsaw_3_1_best')
                               ]
 
@@ -282,15 +286,15 @@ if model_suffix != 'random_init':
 
 for i in tqdm(range(len(sizes))):
     idx_train = model_data[i]
-    Y_mask_train = Y_mask[idx_train]
-    label_train = Y_true[idx_train]
-    weights_train = np.sum(Y_mask_train, axis= 1)/20
-    new_weights_train = weights_train.reshape(-1,1)*Y_mask_train
-    Train_dataset = CQTLoader(root_dir, sample_key[idx_train], new_weights_train, label_train)
-    Train_loader = torch.utils.data.DataLoader(dataset = Train_dataset, 
-                                                                      batch_size = BATCH_SIZE,
-                                                                      shuffle = True,
-                                                                  collate_fn = my_collate)
+    # Y_mask_train = Y_mask[idx_train]
+    # label_train = Y_true[idx_train]
+    # weights_train = np.sum(Y_mask_train, axis= 1)/20
+    # new_weights_train = weights_train.reshape(-1,1)*Y_mask_train
+    Train_dataset = CQTLoader(root_dir, sample_key[idx_train], Y_mask[idx_train], Y_true[idx_train])
+    Train_loader = DataLoader(dataset=Train_dataset,
+                              batch_size=BATCH_SIZE,
+                              shuffle=True,
+                              collate_fn=my_collate)
 
     # Prepare/load model
     model = AudioConvNet(fc=Identity())
@@ -329,10 +333,10 @@ for i in tqdm(range(len(sizes))):
         'model_state_dict': best_model_state_dict
     }
 
-file_path = '/home/jk6373/self_supervised_machine_listening/code/downstream/model/complete_dataset/'
+file_path = '/home/jk6373/self_supervised_machine_listening/code/downstream/frozen/model/complete_dataset/'
 file_name = 'downstream_frozen_' + model_suffix
 results_dict[1500] = torch.load(file_path+file_name)
 
-pkl_file_path = '/home/jk6373/self_supervised_machine_listening/code/downstream/model/limited_dataset/'
+pkl_file_path = '/home/jk6373/self_supervised_machine_listening/code/downstream/frozen/model/limited_dataset/'
 pickle.dump(results_dict, open(pkl_file_path+model_suffix+'_trng_data_size_results.pkl'.format(sizes[i]),'wb'))
 print('complete')
